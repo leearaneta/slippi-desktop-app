@@ -2,13 +2,14 @@ import _ from 'lodash';
 import fs from 'fs-extra';
 import path from 'path';
 import moment from 'moment';
-
-import { WebSocketServer } from 'websocket';
 import http from 'http';
+
+const WebSocketServer = require('websocket').server;
 
 export default class SlpFileWriter {
   static commands = {
     CMD_RECEIVE_COMMANDS: 0x35,
+    CMD_GAME_START: 0x36,
     CMD_RECEIVE_POST_FRAME_UPDATE: 0x38,
     CMD_RECEIVE_GAME_END: 0x39,
   }
@@ -96,7 +97,7 @@ export default class SlpFileWriter {
 
   setStatus(value) {
     this.statusOutput.status = value;
-
+    console.log(`Status changed: ${value}`);
     // TODO: Write to socket
     if (this.statusOutput.connection) {
       this.statusOutput.connection.sendUTF(JSON.stringify({
@@ -185,13 +186,16 @@ export default class SlpFileWriter {
         payloadLen = this.processReceiveCommands(payloadDataView);
         this.writeCommand(command, payloadPtr, payloadLen);
         this.onFileStateChange();
-        this.handleStatusOutput();
         break;
       case SlpFileWriter.commands.CMD_RECEIVE_GAME_END:
         payloadLen = this.processCommand(command, payloadDataView);
         this.writeCommand(command, payloadPtr, payloadLen);
         this.endGame();
         isGameEnd = true;
+        break;
+      case SlpFileWriter.commands.CMD_GAME_START:
+        payloadLen = this.processCommand(command, payloadDataView);
+        this.writeCommand(command, payloadPtr, payloadLen);
         break;
       default:
         payloadLen = this.processCommand(command, payloadDataView);
