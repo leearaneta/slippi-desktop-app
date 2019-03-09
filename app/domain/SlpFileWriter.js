@@ -3,6 +3,9 @@ import fs from 'fs-extra';
 import path from 'path';
 import moment from 'moment';
 
+import { WebSocketServer } from 'websocket';
+import http from 'http';
+
 export default class SlpFileWriter {
   static commands = {
     CMD_RECEIVE_COMMANDS: 0x35,
@@ -14,6 +17,58 @@ export default class SlpFileWriter {
     this.folderPath = folderPath;
     this.onFileStateChange = onFileStateChange;
     this.currentFile = this.getClearedCurrentFile();
+    
+    // TODO: This is a hack for gang to get auto-switching to work
+    this.startWebSocket();
+    this.statusOutput = {
+      status: false,
+      timeout: null,
+      connection: null,
+    };
+  }
+
+  startWebSocket() {
+    const server = http.createServer((request, response) => {
+      console.log((new Date()) + ' Received request for ' + request.url); //eslint-disable-line
+      response.writeHead(404);
+      response.end();
+    });
+    server.listen(8000, () => {
+        console.log((new Date()) + ' Server is listening on port 8000'); //eslint-disable-line
+    });
+    
+    const wsServer = new WebSocketServer({
+      httpServer: server,
+      // You should not use autoAcceptConnections for production
+      // applications, as it defeats all standard cross-origin protection
+      // facilities built into the protocol and the browser.  You should
+      // *always* verify the connection's origin and decide whether or not
+      // to accept it.
+      autoAcceptConnections: false,
+    });
+    
+    const originIsAllowed = (origin) => { //eslint-disable-line
+      // put logic here to detect whether the specified origin is allowed.
+      return true;
+    }
+    
+    wsServer.on('request', (request) => {
+      if (!originIsAllowed(request.origin)) {
+        // Make sure we only accept requests from an allowed origin
+        request.reject();
+        console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.'); //eslint-disable-line
+        return;
+      }
+      
+      const connection = request.accept('echo-protocol', request.origin);
+      this.statusOutput.connection = connection;
+      console.log((new Date()) + ' Connection accepted.'); //eslint-disable-line
+
+      connection.on('close', (reasonCode, description) => { //eslint-disable-line
+        console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.'); //eslint-disable-line
+        this.statusOutput.connection = null;
+      });
+    });
   }
 
   getClearedCurrentFile() {
@@ -39,6 +94,43 @@ export default class SlpFileWriter {
     this.folderPath = settings.targetFolder;
   }
 
+  setStatus(value) {
+    this.statusOutput.status = value;
+
+    // TODO: Write to socket
+    if (this.statusOutput.connection) {
+      this.statusOutput.connection.sendUTF(JSON.stringify({
+        'isActive': value,
+      }));
+    }
+  }
+
+  handleStatusOutput() {
+    const setTimer = () => {
+      if (this.statusOutput.timeout) {
+        // If we have a timeout, clear it
+        clearTimeout(this.statusOutput.timeout);
+      }
+
+      this.statusOutput.timeout = setTimeout(() => {
+        // If we timeout, set and set status
+        this.setStatus(false);
+      }, 250);
+    }
+
+    if (this.statusOutput.status) {
+      // If game is currently active, reset the timer
+      setTimer();
+      return;
+    }
+
+    // Here we did not have a game going, so let's indicate we do now
+    this.setStatus(true);
+    
+    // Set timer
+    setTimer();
+  }
+
   handleData(newData) {
     let isNewGame = false;
     let isGameEnd = false;
@@ -58,6 +150,7 @@ export default class SlpFileWriter {
         index += 5;
         continue;
       }
+
 
       // TODO: Here we are parsing slp file data. Seems pretty silly to do this when
       // TODO: logic already exists in the parser to do it... Should eventually reconcile
@@ -92,6 +185,7 @@ export default class SlpFileWriter {
         payloadLen = this.processReceiveCommands(payloadDataView);
         this.writeCommand(command, payloadPtr, payloadLen);
         this.onFileStateChange();
+        this.handleStatusOutput();
         break;
       case SlpFileWriter.commands.CMD_RECEIVE_GAME_END:
         payloadLen = this.processCommand(command, payloadDataView);
@@ -102,6 +196,7 @@ export default class SlpFileWriter {
       default:
         payloadLen = this.processCommand(command, payloadDataView);
         this.writeCommand(command, payloadPtr, payloadLen);
+        this.handleStatusOutput();
         break;
       }
 

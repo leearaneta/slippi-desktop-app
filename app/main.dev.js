@@ -140,9 +140,12 @@ app.on('open-url', (event, url) => {
 app.on('window-all-closed', () => {
   // Respect the OSX convention of having the application in memory even
   // after all windows have been closed
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+
+  // I commented this out because when the app was in the closed state
+  // it wouldn't respond to URI requests. Plus it was annoying
+  // if (process.platform !== 'darwin') {
+  //   app.quit();
+  // }
 });
 
 // Only allow a single Slippi Launcher instance
