@@ -3,30 +3,26 @@ import PropTypes from 'prop-types'
 import _ from 'lodash'
 import styles from '../GameProfile.scss'
 
-import NonLethalPunishRow from './NonLethalPunishRow'
-import LethalPunishRow from './LethalPunishRow'
+import PunishRow from './PunishRow'
 import SelfDestructRow from './SelfDestructRow'
 import TimestampBox from './TimestampBox'
 import {
-  getYCoordinateFromFrame,
+  getYCoordinateFromTimestamp,
   isSelfDestruct,
   svgWidth,
   rowHeight,
-  stockSize,
   tooltipWidth,
   tooltipTextX,
   tooltipOffsetX,
   punishPropTypes,
 } from './constants'
 
-const Timeline = ({ punishes, stocks, players, uniqueTimestamps, hoveredPunish }) => {
+const Timeline = ({ punishes, stocks, players, uniqueTimestamps, currentTimestamp }) => {
 
   const [firstPlayer, secondPlayer] = _.sortBy(_.keys(players))
 
   const playerStyles = {
     [firstPlayer]: {
-      stock: {transform: `translate(${svgWidth*.45 - 4*stockSize}, ${stockSize / 2})`},
-      percent: {transform: `translate(${svgWidth*.45}, 0)`, textAnchor: 'end'},
       text: {transform: `translate(${svgWidth*.1}, 0)`, textAnchor: 'start'},
       line: {x1: svgWidth*.375, x2: svgWidth*.45},
       tooltip: {
@@ -36,8 +32,6 @@ const Timeline = ({ punishes, stocks, players, uniqueTimestamps, hoveredPunish }
       },
     },
     [secondPlayer]: {
-      stock: {transform: `translate(${svgWidth*.55}, ${stockSize / 2})`},
-      percent: {transform: `translate(${svgWidth*.55}, 0)`},
       text: {transform: `translate(${svgWidth*.9}, 0)`, textAnchor: 'end'},
       line: {x1: svgWidth*.625, x2: svgWidth*.55},
       tooltip: {
@@ -48,34 +42,13 @@ const Timeline = ({ punishes, stocks, players, uniqueTimestamps, hoveredPunish }
     },
   }
 
-  const nonLethalPunishRows = punishes
-    .filter(punish => !punish.didKill)
+  const punishRows = punishes
     .map(punish =>
-      <NonLethalPunishRow
+      <PunishRow
         key={`${punish.playerIndex} ${punish.startFrame}`}
         punish={punish}
         playerStyles={playerStyles}
-        yCoordinate={getYCoordinateFromFrame(punish.startFrame, uniqueTimestamps)}
-      />
-    )
-
-  const getCurrentStockCount = punish =>
-    _(stocks)
-      .filter(stock => stock.playerIndex === punish.opponentIndex && stock.startFrame < punish.startFrame)
-      .sortBy('startFrame')
-      .last()
-      .count
-      
-  const lethalPunishRows = punishes
-    .filter(punish => !!punish.didKill)
-    .map(punish => 
-      <LethalPunishRow 
-        key={`${punish.playerIndex} ${punish.startFrame}`}
-        punish={punish}
-        opponent={players[punish.opponentIndex]}
-        playerStyles={playerStyles}
-        yCoordinate={getYCoordinateFromFrame(punish.startFrame, uniqueTimestamps)}
-        stockCount={getCurrentStockCount(punish) - 1}
+        yCoordinate={getYCoordinateFromTimestamp(punish.timestamp, uniqueTimestamps)}
       />
     )
 
@@ -87,7 +60,7 @@ const Timeline = ({ punishes, stocks, players, uniqueTimestamps, hoveredPunish }
         stock={stock}
         player={players[stock.playerIndex]}
         playerStyles={playerStyles}
-        yCoordinate={getYCoordinateFromFrame(stock.endFrame, uniqueTimestamps)}
+        yCoordinate={getYCoordinateFromTimestamp(stock.timestamp, uniqueTimestamps)}
       />
     )
 
@@ -100,17 +73,12 @@ const Timeline = ({ punishes, stocks, players, uniqueTimestamps, hoveredPunish }
       />
     )
 
-  const punishRows = _.sortBy(
-    [ ...nonLethalPunishRows, ...lethalPunishRows ],
-    row => row.props.punish.startFrame
-  )
-
   return (
     <g>
-      { hoveredPunish &&
+      { currentTimestamp &&
         <rect
           x={0}
-          y={getYCoordinateFromFrame(hoveredPunish.startFrame, uniqueTimestamps) - (rowHeight/2)}
+          y={getYCoordinateFromTimestamp(currentTimestamp, uniqueTimestamps) - (rowHeight/2)}
           width={svgWidth}
           height={rowHeight}
           className={styles['punish-hover']}
@@ -139,11 +107,11 @@ Timeline.propTypes = {
   stocks: PropTypes.arrayOf(PropTypes.object).isRequired,
   players: PropTypes.object.isRequired,
   uniqueTimestamps: PropTypes.arrayOf(PropTypes.string).isRequired,
-  hoveredPunish: punishPropTypes,
+  currentTimestamp: PropTypes.string,
 }
 
 Timeline.defaultProps = {
-  hoveredPunish: null,
+  currentTimestamp: null,
 }
 
 export default React.memo(Timeline)

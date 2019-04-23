@@ -71,7 +71,7 @@ export default class PunishRow extends Component {
   }
 
   render() {
-    const { punish, playerStyles, yCoordinate, children } = this.props
+    const { punish, playerStyles, yCoordinate } = this.props
     const text = renderPunishText(punish)
     const { text: playerTextStyle, line: playerLineStyle, tooltip: tooltipStyle } = playerStyles[punish.playerIndex]
   
@@ -94,7 +94,6 @@ export default class PunishRow extends Component {
           {this.state.hover && punish.moves.length > 1 && <Tooltip punish={punish} tooltipStyle={tooltipStyle}/>}
           {text} 
         </g>
-        { children }
       </g>
     )
   }

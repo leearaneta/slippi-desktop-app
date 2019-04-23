@@ -13,29 +13,26 @@ class Punish extends Component {
 
   static propTypes = {
     punish: punishPropTypes.isRequired,
-    // player: playerPropTypes.isRequired,
     xPosition: PropTypes.oneOf(['left', 'right']).isRequired,
     origin: PropTypes.number.isRequired,
     onPunishMouseOver: PropTypes.func.isRequired,
-    onPunishMouseOut: PropTypes.func.isRequired,
   }
 
-  constructor(props) {
-    super(props)
-    this.state = {
-      hover: false,
-    }
-  }
+  // constructor(props) {
+  //   super(props)
+  //   this.state = {
+  //     hover: false,
+  //   }
+  // }
 
   onMouseOver = () => {
     const { punish, onPunishMouseOver } = this.props
-    this.setState({hover: true})
+    // this.setState({hover: true})
     onPunishMouseOver(punish)
   }
 
   onMouseOut = () => {
-    this.setState({hover: false})
-    this.props.onPunishMouseOut()
+    // this.setState({hover: false})
   }
 
   render() {
@@ -54,8 +51,7 @@ class Punish extends Component {
     ))
       
     return (
-      <g
-      >
+      <g>
         { punish.didKill &&
           <rect
             x={xPosition === "left" ? origin : 0}
@@ -76,15 +72,16 @@ class Punish extends Component {
           y={punish.startFrame}
           width={origin}
           height={punish.endFrame - punish.startFrame}
-          opacity={this.state.hover ? .5 : 0}
-          fill="#E9EAEA"
+          // opacity={this.state.hover ? .25 : 0}
+          // fill="#E9EAEA"
+          opacity="0"
         />
       </g>
     )
   }
 }
 
-const MiniTimeline = ({ punishes, players, onPunishMouseOver, onPunishMouseOut }) => {
+const MiniTimeline = ({ punishes, players, onPunishMouseOver, currentTimestamp }) => {
   
   const height = _.maxBy(punishes, 'endFrame').endFrame
 
@@ -93,6 +90,8 @@ const MiniTimeline = ({ punishes, players, onPunishMouseOver, onPunishMouseOut }
     .map(_.last)
     .max()
     * 2
+
+  const origin = width / 2
   
   const playerIndices = _.keys(players).map(key => parseInt(key, 10))
   const xPositions = _.mapValues(players, player =>
@@ -105,15 +104,26 @@ const MiniTimeline = ({ punishes, players, onPunishMouseOver, onPunishMouseOut }
       punish={punish}
       player={players[punish.playerIndex]}
       xPosition={xPositions[punish.playerIndex]}
-      origin={width / 2}
+      origin={origin}
       onPunishMouseOver={onPunishMouseOver}
-      onPunishMouseOut={onPunishMouseOut}
     />
   )
+
+  const currentPunish = punishes.find(punish => punish.timestamp === currentTimestamp)
 
   return (
     <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
       { punishesToRender }
+      { currentTimestamp && currentPunish &&
+        <rect
+          x={xPositions[currentPunish.playerIndex] === "left" ? 0 : origin}
+          y={currentPunish.startFrame}
+          width={origin}
+          height={currentPunish.endFrame - currentPunish.startFrame}
+          opacity={.25}
+          fill="#E9EAEA"
+        />
+      }
     </svg>   
   )
 }
@@ -122,7 +132,11 @@ MiniTimeline.propTypes = {
   punishes: PropTypes.arrayOf(punishPropTypes).isRequired,
   players: PropTypes.object.isRequired,
   onPunishMouseOver: PropTypes.func.isRequired,
-  onPunishMouseOut: PropTypes.func.isRequired,
+  currentTimestamp: PropTypes.string,
+}
+
+MiniTimeline.defaultProps = {
+  currentTimestamp: null,
 }
 
 export default MiniTimeline
