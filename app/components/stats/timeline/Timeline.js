@@ -3,12 +3,10 @@ import PropTypes from 'prop-types'
 import _ from 'lodash'
 import styles from '../GameProfile.scss'
 
-import PunishRow from './PunishRow'
-import SelfDestructRow from './SelfDestructRow'
+import { PunishRow, SelfDestructRow } from './TimelineEvents'
 import TimestampBox from './TimestampBox'
 import {
   getYCoordinateFromTimestamp,
-  isSelfDestruct,
   svgWidth,
   rowHeight,
   tooltipWidth,
@@ -17,7 +15,7 @@ import {
   punishPropTypes,
 } from './constants'
 
-const Timeline = ({ punishes, stocks, players, uniqueTimestamps, currentTimestamp }) => {
+const Timeline = ({ punishes, selfDestructs, players, uniqueTimestamps, handleMouseOver, currentTimestamp }) => {
 
   const [firstPlayer, secondPlayer] = _.sortBy(_.keys(players))
 
@@ -45,22 +43,22 @@ const Timeline = ({ punishes, stocks, players, uniqueTimestamps, currentTimestam
   const punishRows = punishes
     .map(punish =>
       <PunishRow
-        key={`${punish.playerIndex} ${punish.startFrame}`}
+        key={`${punish.playerIndex}-${punish.startFrame}`}
         punish={punish}
         playerStyles={playerStyles}
         yCoordinate={getYCoordinateFromTimestamp(punish.timestamp, uniqueTimestamps)}
+        handleMouseOver={handleMouseOver}
       />
     )
 
-  const selfDestructRows = stocks
-    .filter(isSelfDestruct(punishes))
-    .map(stock =>
+  const selfDestructRows = selfDestructs
+    .map(selfDestruct =>
       <SelfDestructRow
-        key={`${stock.playerIndex} ${stock.endFrame}`}
-        stock={stock}
-        player={players[stock.playerIndex]}
+        key={`${selfDestruct.playerIndex}-${selfDestruct.endFrame}`}
+        selfDestruct={selfDestruct}
         playerStyles={playerStyles}
-        yCoordinate={getYCoordinateFromTimestamp(stock.timestamp, uniqueTimestamps)}
+        yCoordinate={getYCoordinateFromTimestamp(selfDestruct.timestamp, uniqueTimestamps)}
+        handleMouseOver={handleMouseOver}
       />
     )
 
@@ -104,9 +102,10 @@ const Timeline = ({ punishes, stocks, players, uniqueTimestamps, currentTimestam
 
 Timeline.propTypes = {
   punishes: PropTypes.arrayOf(punishPropTypes).isRequired,
-  stocks: PropTypes.arrayOf(PropTypes.object).isRequired,
+  selfDestructs: PropTypes.arrayOf(PropTypes.object).isRequired,
   players: PropTypes.object.isRequired,
   uniqueTimestamps: PropTypes.arrayOf(PropTypes.string).isRequired,
+  handleMouseOver: PropTypes.func.isRequired,
   currentTimestamp: PropTypes.string,
 }
 

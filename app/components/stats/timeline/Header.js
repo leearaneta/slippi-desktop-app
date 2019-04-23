@@ -32,7 +32,7 @@ const renderStock = (player, stocksRemaining) => (stockNumber, index) => {
       xlinkHref={getLocalImage(imageName)}
       height={stockSize}
       width={stockSize}
-      x={stockSize*(player.startStocks - (index+1))}
+      x={stockSize*index}
       y={-stockSize}
     />
   )

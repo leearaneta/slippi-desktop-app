@@ -5,7 +5,7 @@ import _ from 'lodash'
 import Timeline from './Timeline'
 import MiniTimeline from './MiniTimeline'
 import Header from './Header'
-import { isSelfDestruct, svgWidth, rowHeight } from './constants' 
+import { svgWidth, rowHeight } from './constants' 
 import { convertFrameCountToDurationString } from '../../../utils/time'
 
 export default class TimelineContainer extends Component {
@@ -18,13 +18,27 @@ export default class TimelineContainer extends Component {
     super(props)
 
     const gameStats = this.props.game.getStats()
+
+    // we often need to concatentate punishes and self destructs into one list
+    // no static typing :( it'll help to have a "type" attribute
     this.punishes = _
       .get(gameStats, 'conversions')
-      .map(punish => ({ ...punish, timestamp: convertFrameCountToDurationString(punish.startFrame) }))
+      .map(punish => ({
+        ...punish,
+        type: 'punish',
+        yFrame: punish.startFrame,
+        timestamp: convertFrameCountToDurationString(punish.startFrame),
+      }))
 
-    this.stocks = _
+    this.selfDestructs = _
       .get(gameStats, 'stocks')
-      .map(stock => ({ ...stock, timestamp: convertFrameCountToDurationString(stock.endFrame) }))
+      .filter(this.isSelfDestruct)
+      .map(selfDestruct => ({
+        ...selfDestruct,
+        type: 'sd',
+        yFrame: selfDestruct.endFrame,
+        timestamp: convertFrameCountToDurationString(selfDestruct.endFrame),
+      }))
 
     this.timelineRef = React.createRef()
 
@@ -37,6 +51,15 @@ export default class TimelineContainer extends Component {
     this.heightRatio = this.timelineRef.current.scrollHeight / (this.uniqueTimestamps.length+1)
   }
 
+  isSelfDestruct = stock => {
+    const punishEndedThisStock = punish =>
+      punish.opponentIndex === stock.playerIndex
+        && punish.didKill
+        && punish.endFrame === stock.endFrame
+  
+    return stock.endFrame && !this.punishes.find(punishEndedThisStock)
+  }
+  
   get players() {
     const gameSettings = this.props.game.getSettings()
     const players = _.get(gameSettings, 'players') || []
@@ -45,12 +68,9 @@ export default class TimelineContainer extends Component {
 
   get uniqueTimestamps() {
     const punishTimestamps = this.punishes.map(punish => punish.timestamp)
-
-    const stockTimestamps = this.stocks
-      .filter(isSelfDestruct(this.punishes))
-      .map(stock => stock.timestamp)
+    const selfDestructTimestamps = this.selfDestructs.map(stock => stock.timestamp)
     
-    const allTimestamps = [ ...punishTimestamps, ...stockTimestamps ]
+    const allTimestamps = [ ...punishTimestamps, ...selfDestructTimestamps ]
     return _(allTimestamps)
       .sortBy()
       .sortedUniq()
@@ -95,11 +115,7 @@ export default class TimelineContainer extends Component {
   }
 
   get damageByTimestamp() {
-    const punishes = this.punishes.map(punish => ({ ...punish, type: 'punish' }))
-    const selfDestructs = this.stocks
-      .filter(isSelfDestruct(this.punishes))
-      .map(stock => ({ ...stock, type: 'sd' }))
-    const allEvents = _.sortBy([ ...punishes, ...selfDestructs ], 'timestamp')
+    const allEvents = _.sortBy([ ...this.punishes, ...this.selfDestructs ], 'timestamp')
     const initialState = {
       damageByTimestamp: {},
       currentDamage: this.initialDamage,
@@ -109,17 +125,14 @@ export default class TimelineContainer extends Component {
       .damageByTimestamp
   }
 
-  handleScroll = () => {
-    const timestampIndex = Math.ceil(this.timelineRef.current.scrollTop / this.heightRatio)
-    const timestamp = this.uniqueTimestamps[timestampIndex]
-    if (timestamp !== this.state.currentTimestamp)
-      this.setState({currentTimestamp: timestamp})
+  handleTimelineMouseOver = ({ timestamp }) => {
+    this.setState({currentTimestamp: timestamp})
   }
 
-  onPunishMouseOver = punish => {
-    const y = this.uniqueTimestamps.indexOf(punish.timestamp) * this.heightRatio
+  handleMiniTimelineMouseOver = ({ timestamp }) => {
+    const y = this.uniqueTimestamps.indexOf(timestamp) * this.heightRatio
     this.timelineRef.current.scrollTo({top: y, behavior: "smooth"})
-    this.setState({currentTimestamp: punish.timestamp})
+    this.setState({currentTimestamp: timestamp})
   }
   
   render() {
@@ -132,7 +145,6 @@ export default class TimelineContainer extends Component {
           />
           <div 
             style={{overflow: "scroll", overflowX: "hidden"}}
-            onScroll={_.debounce(this.handleScroll, 500)}
             ref={this.timelineRef}
           >
             <div style={{height: "45rem"}}>
@@ -142,9 +154,10 @@ export default class TimelineContainer extends Component {
               >
                 <Timeline
                   punishes={this.punishes}
-                  stocks={this.stocks}
+                  selfDestructs={this.selfDestructs}
                   players={this.players}
                   uniqueTimestamps={this.uniqueTimestamps}
+                  handleMouseOver={this.handleTimelineMouseOver}
                   currentTimestamp={this.state.currentTimestamp}
                 />
               </svg>
@@ -153,9 +166,10 @@ export default class TimelineContainer extends Component {
         </div>
         <div style={{flex: 2, height: "50rem"}}>
           <MiniTimeline
-            players={this.players}
             punishes={this.punishes}
-            onPunishMouseOver={this.onPunishMouseOver}
+            selfDestructs={this.selfDestructs}
+            players={this.players}
+            handleMouseOver={this.handleMiniTimelineMouseOver}
             currentTimestamp={this.state.currentTimestamp}
           />
         </div>

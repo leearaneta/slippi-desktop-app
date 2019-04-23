@@ -1,87 +1,11 @@
-import React, { Component } from 'react'
+import React from 'react'
 import _ from 'lodash'
 import PropTypes from 'prop-types'
 
-import { punishPropTypes } from './constants'
+import { MiniTimelinePunish, MiniTimelineSelfDestruct } from './MiniTimelineEvents'
+import { punishPropTypes, getCumulativeComboDamage } from './constants'
 
-const getCumulativeComboDamage = punish => 
-  punish.moves.reduce((cumulativeDamage, move) =>
-    [ ...cumulativeDamage, (_.last(cumulativeDamage) || 0) + move.damage ], []
-  )
-
-class Punish extends Component {
-
-  static propTypes = {
-    punish: punishPropTypes.isRequired,
-    xPosition: PropTypes.oneOf(['left', 'right']).isRequired,
-    origin: PropTypes.number.isRequired,
-    onPunishMouseOver: PropTypes.func.isRequired,
-  }
-
-  // constructor(props) {
-  //   super(props)
-  //   this.state = {
-  //     hover: false,
-  //   }
-  // }
-
-  onMouseOver = () => {
-    const { punish, onPunishMouseOver } = this.props
-    // this.setState({hover: true})
-    onPunishMouseOver(punish)
-  }
-
-  onMouseOut = () => {
-    // this.setState({hover: false})
-  }
-
-  render() {
-    const { punish, xPosition, origin } = this.props
-    const cumulativeComboDamage = getCumulativeComboDamage(punish)
-    const moves = punish.moves.map((move, index) => (
-      <line
-        key={xPosition + move.frame}
-        y1={move.frame}
-        y2={move.frame}
-        x1={origin}
-        x2={origin + (cumulativeComboDamage[index] * (xPosition === "left" ? -1 : 1))}
-        stroke='white'
-        strokeWidth={10}
-      />
-    ))
-      
-    return (
-      <g>
-        { punish.didKill &&
-          <rect
-            x={xPosition === "left" ? origin : 0}
-            y={punish.startFrame}
-            width={origin}
-            height={punish.endFrame - punish.startFrame}
-            fill='#FF695E'
-            opacity={.5}
-          />
-        }
-        { moves }
-        <rect
-          onMouseOver={this.onMouseOver}
-          onMouseOut={this.onMouseOut}
-          onFocus={this.onMouseOver}
-          onBlur={this.onMouseOut}
-          x={xPosition === "left" ? 0 : origin}
-          y={punish.startFrame}
-          width={origin}
-          height={punish.endFrame - punish.startFrame}
-          // opacity={this.state.hover ? .25 : 0}
-          // fill="#E9EAEA"
-          opacity="0"
-        />
-      </g>
-    )
-  }
-}
-
-const MiniTimeline = ({ punishes, players, onPunishMouseOver, currentTimestamp }) => {
+const MiniTimeline = ({ punishes, selfDestructs, players, handleMouseOver, currentTimestamp }) => {
   
   const height = _.maxBy(punishes, 'endFrame').endFrame
 
@@ -98,28 +22,38 @@ const MiniTimeline = ({ punishes, players, onPunishMouseOver, currentTimestamp }
     playerIndices.indexOf(player.playerIndex) === 0 ? "left" : "right"
   )
 
-  const punishesToRender = punishes.map((punish, index) =>
-    <Punish
-      key={xPositions[punish.playerIndex] + index}
+  const miniTimelinePunishes = punishes.map((punish, index) =>
+    <MiniTimelinePunish
+      key={`${xPositions[punish.playerIndex]}-punish-${index}`}
       punish={punish}
-      player={players[punish.playerIndex]}
       xPosition={xPositions[punish.playerIndex]}
       origin={origin}
-      onPunishMouseOver={onPunishMouseOver}
+      handleMouseOver={handleMouseOver}
     />
   )
 
-  const currentPunish = punishes.find(punish => punish.timestamp === currentTimestamp)
+  const miniTimelineSelfDestructs = selfDestructs.map((selfDestruct, index) =>
+    <MiniTimelineSelfDestruct
+      key={`${xPositions[selfDestruct.playerIndex]}-sd-${index}`}
+      selfDestruct={selfDestruct}
+      xPosition={xPositions[selfDestruct.playerIndex]}
+      origin={origin}
+      handleMouseOver={handleMouseOver}
+    />
+  )
+
+  const currentEvent = [ ...punishes, ...selfDestructs ].find(event => event.timestamp === currentTimestamp)
 
   return (
     <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-      { punishesToRender }
-      { currentTimestamp && currentPunish &&
+      { miniTimelinePunishes }
+      { miniTimelineSelfDestructs }
+      { currentTimestamp &&
         <rect
-          x={xPositions[currentPunish.playerIndex] === "left" ? 0 : origin}
-          y={currentPunish.startFrame}
+          x={xPositions[currentEvent.playerIndex] === "left" ? 0 : origin}
+          y={currentEvent.yFrame}
           width={origin}
-          height={currentPunish.endFrame - currentPunish.startFrame}
+          height={currentEvent.type === 'punish' ? currentEvent.endFrame - currentEvent.startFrame : 100}
           opacity={.25}
           fill="#E9EAEA"
         />
@@ -130,8 +64,9 @@ const MiniTimeline = ({ punishes, players, onPunishMouseOver, currentTimestamp }
 
 MiniTimeline.propTypes = {
   punishes: PropTypes.arrayOf(punishPropTypes).isRequired,
+  selfDestructs: PropTypes.array.isRequired,
   players: PropTypes.object.isRequired,
-  onPunishMouseOver: PropTypes.func.isRequired,
+  handleMouseOver: PropTypes.func.isRequired,
   currentTimestamp: PropTypes.string,
 }
 

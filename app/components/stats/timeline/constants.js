@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import PropTypes from 'prop-types'
 
 export const svgWidth = 150
@@ -13,17 +14,13 @@ export const textStyle = {
   fill: "rgba(255, 255, 255, .8)",
 }
 
-export const isSelfDestruct = punishes => stock => {
-  const punishEndedThisStock = punish =>
-    punish.opponentIndex === stock.playerIndex
-      && punish.didKill
-      && punish.endFrame === stock.endFrame
-
-  return stock.endFrame && !punishes.find(punishEndedThisStock)
-}
-
 export const getYCoordinateFromTimestamp = (timestamp, uniqueTimestamps) =>
   (uniqueTimestamps.indexOf(timestamp)+1) * rowHeight
+
+export const getCumulativeComboDamage = punish => 
+  punish.moves.reduce((cumulativeDamage, move) =>
+    [ ...cumulativeDamage, (_.last(cumulativeDamage) || 0) + move.damage ], []
+  )
 
 export const playerPropTypes = PropTypes.shape({
   playerIndex: PropTypes.number.isRequired,
